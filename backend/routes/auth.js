@@ -2,6 +2,10 @@ const express = require("express");
 const User = require("../models/User");
 const router = express.Router();
 const { body, validationResult } = require("express-validator");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+
+const JWT_SECRET = "VerySecure";
 
 // creating new user using post : "/api/auth/createuser"
 router.post(
@@ -18,27 +22,36 @@ router.post(
       return res.status(400).json({ errors: errors.array() });
     }
     // handling erroe for user with same email id
-    try{
-    let user = await User.findOne({ email: req.body.email });
-    if (user) {
-      return res
-        .status(400)
-        .json({ error: "sorry a user with same email already exixst" });
+    try {
+      let user = await User.findOne({ email: req.body.email });
+      if (user) {
+        return res
+          .status(400)
+          .json({ error: "sorry a user with same email already exixst" });
+      }
+      // generating salt for securing password
+      const salt = await bcrypt.genSaltSync(10);
+      // generating hash by using packeg 'bcrypt' for securing password
+      const scrPassword = await bcrypt.hashSync(req.body.password, salt);
+      //creating new user
+      user = await User.create({
+        name: req.body.name,
+        email: req.body.email,
+        password: scrPassword,
+      });
+      // authtocken data : using id index from mongodb
+      const data = {
+        user: {
+          id: user.id,
+        },
+      };
+      // generating authtoken
+      const authtoken = jwt.sign(data, JWT_SECRET);
+      res.json({authtoken});
+    } catch (error) {
+      console.error(error.message);
+      res.status(500).send("some error occoured");
     }
-    //creating new user
-    user = await User.create({
-      name: req.body.name,
-      email: req.body.email,
-      password: req.body.password,
-    });
-    res.json(user);
-  }
-  catch (error)
-  {
-    console.error(error.message);
-    res.status(500).send("some error occoured");
-  }
-
     //.then(user => res.json(user));
   }
 );
